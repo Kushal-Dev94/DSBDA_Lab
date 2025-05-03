@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# Step 0: Switch to hduser and create necessary directories
+echo "Switch to hduser and prepare directories..."
+sudo su - hduser <<EOF
+
+# Step 1: Make download directory if not already present
+mkdir -p ~/Downloads
+cd ~/Downloads
+
+# Step 2: Download Hive 2.1.1 tarball using wget
+wget https://archive.apache.org/dist/hive/hive-2.1.1-bin.tar.gz
+
+# Step 3: Create directory to extract Hive
+mkdir -p ~/hive-extracted
+tar -xvzf apache-hive-2.1.1-bin.tar.gz -C ~/hive-extracted --strip-components=1
+
+# Step 4: Move Hive to /usr/local/hive (create target directory if needed)
+sudo mkdir -p /usr/local/hive
+sudo mv ~/hive-extracted/* /usr/local/hive/
+
+# Step 5: Set Hive environment variables (append to ~/.bashrc)
+echo '
+export HIVE_HOME=/usr/local/hive
+export PATH=\$PATH:\$HIVE_HOME/bin
+' >> ~/.bashrc
+source ~/.bashrc
+
+# Step 6: Start Hadoop (make sure Hadoop is installed and configured)
+start-dfs.sh
+start-yarn.sh
+
+# Optional: Check Hadoop services
+jps
+
+# Step 7: Create Hive warehouse and temp directories in HDFS
+hdfs dfs -mkdir -p /user/hive/warehouse
+hdfs dfs -mkdir -p /tmp/hive
+
+# Step 8: Set permissions
+hdfs dfs -chmod 777 /user/hive/warehouse
+hdfs dfs -chmod 777 /tmp/hive
+
+# Step 9: Initialize Hive Metastore with schematool (Derby DB)
+cd /usr/local/hive/bin
+./schematool -initSchema -dbType derby
+
+# Step 10: Start Hive CLI
+hive <<EOF2
+
+-- Create table for airline delay
+CREATE TABLE IF NOT EXISTS airline_delay (
+    year INT,
+    month INT,
+    carrier STRING,
+    carrier_name STRING,
+    airport STRING,
+    airport_name STRING,
+    arr_flights INT,
+    arr_del15 INT,
+    carrier_ct FLOAT,
+    weather_ct FLOAT,
+    nas_ct FLOAT,
+    security_ct FLOAT,
+    late_aircraft_ct FLOAT,
+    arr_cancelled INT,
+    arr_diverted INT,
+    arr_delay INT,
+    carrier_delay INT,
+    weather_delay INT,
+    nas_delay INT,
+    security_delay INT,
+    late_aircraft_delay INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Load data (assumes header row is removed)
+LOAD DATA LOCAL INPATH '/home/hduser/Airline_Delay.csv'
+OVERWRITE INTO TABLE airline_delay;
+
+-- Total Arrival Delay by Airport
+SELECT airport, SUM(arr_delay) AS total_arrival_delay
+FROM airline_delay
+GROUP BY airport
+ORDER BY total_arrival_delay DESC;
+
+-- Average Delay per Flight for Each Carrier
+SELECT carrier_name,
+       ROUND(SUM(arr_delay) * 1.0 / SUM(arr_flights), 2) AS avg_delay_per_flight
+FROM airline_delay
+GROUP BY carrier_name
+ORDER BY avg_delay_per_flight DESC;
+
+-- Top 10 Airports with Late Aircraft Delays
+SELECT airport_name,
+       SUM(late_aircraft_delay) AS total_late_aircraft_delay
+FROM airline_delay
+GROUP BY airport_name
+ORDER BY total_late_aircraft_delay DESC
+LIMIT 10;
+
+-- Monthly Weather Delay Trends
+SELECT month,
+       SUM(weather_delay) AS total_weather_delay
+FROM airline_delay
+GROUP BY month
+ORDER BY month;
+
+-- Delay Breakdown by Type for Each Carrier
+SELECT carrier_name,
+       SUM(carrier_delay) AS carrier_delay,
+       SUM(weather_delay) AS weather_delay,
+       SUM(nas_delay) AS nas_delay,
+       SUM(security_delay) AS security_delay,
+       SUM(late_aircraft_delay) AS late_aircraft_delay
+FROM airline_delay
+GROUP BY carrier_name
+ORDER BY carrier_name;
+
+EOF2
+
+EOF
