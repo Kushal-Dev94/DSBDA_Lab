@@ -1,0 +1,126 @@
+# Download and Extract Hadoop
+wget https://archive.apache.org/dist/hadoop/common/hadoop-2.9.0/hadoop-2.9.0.tar.gz
+tar -xzf hadoop-2.9.0.tar.gz
+sudo mv hadoop-2.9.0 /usr/local/hadoop
+
+# Install Java and SSH
+sudo apt update
+sudo apt install openjdk-8-jdk -y
+sudo apt install ssh -y
+ssh-keygen -t rsa -P ""
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+ssh localhost
+
+# Environment Variables
+echo '
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export HADOOP_HOME=/usr/local/hadoop
+export HADOOP_INSTALL=$HADOOP_HOME
+export PATH=$PATH:$HADOOP_HOME/bin
+export PATH=$PATH:$HADOOP_HOME/sbin
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+export HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native
+export HADOOP_OPTS="-Djava.library.path=$HADOOP_HOME/lib"
+export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+' >> ~/.bashrc
+source ~/.bashrc
+
+# Create HDFS Directories
+sudo mkdir -p /usr/local/hadoop/hdfs/namenode
+sudo mkdir -p /usr/local/hadoop/hdfs/datanode
+sudo chown -R $USER:$USER /usr/local/hadoop
+
+# core-site.xml
+cat > $HADOOP_CONF_DIR/core-site.xml << EOF
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://localhost:9000</value>
+  </property>
+</configuration>
+EOF
+
+# hdfs-site.xml
+cat > $HADOOP_CONF_DIR/hdfs-site.xml << EOF
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:///usr/local/hadoop/hdfs/namenode</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:///usr/local/hadoop/hdfs/datanode</value>
+  </property>
+</configuration>
+EOF
+
+# mapred-site.xml
+cp $HADOOP_CONF_DIR/mapred-site.xml.template $HADOOP_CONF_DIR/mapred-site.xml
+cat > $HADOOP_CONF_DIR/mapred-site.xml << EOF
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+</configuration>
+EOF
+
+# yarn-site.xml
+cat > $HADOOP_CONF_DIR/yarn-site.xml << EOF
+<configuration>
+  <property>
+    <name>yarn.resourcemanager.address</name>
+    <value>localhost:8032</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+</configuration>
+EOF
+
+# hadoop-env.sh
+sed -i '/^export JAVA_HOME/ c\export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64' $HADOOP_CONF_DIR/hadoop-env.sh
+
+# slaves/workers (for multi-node)
+echo -e "localhost" > $HADOOP_CONF_DIR/slaves
+# For multi-node, replace with:
+# echo -e "master\nslave1\nslave2" > $HADOOP_CONF_DIR/slaves
+
+# Format and Start Services
+hdfs namenode -format
+start-dfs.sh
+start-yarn.sh
+
+# ----- RUN SINGLE NODE -----
+jps
+hadoop fs -mkdir /input
+hadoop fs -put $HADOOP_HOME/etc/hadoop/*.xml /input
+hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.9.0.jar grep /input /output 'dfs[a-z.]+'
+hadoop fs -cat /output/*
+
+# ----- RUN MULTI NODE -----
+# On master:
+ssh master
+start-dfs.sh
+start-yarn.sh
+jps
+
+# On each slave:
+ssh slave1
+jps
+# repeat for slave2, slave3, etc.
+
+# Run job on master:
+hadoop fs -mkdir /input
+hadoop fs -put $HADOOP_HOME/etc/hadoop/*.xml /input
+hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.9.0.jar grep /input /output 'dfs[a-z.]+'
+hadoop fs -cat /output/*
