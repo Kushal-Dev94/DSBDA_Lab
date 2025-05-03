@@ -1,4 +1,7 @@
 https://github.com/RanjeetKumbhar01/TE_IT_DSBDA_ASSIGNMENTS_SPPU.git
+$ curl https://getmic.ro | bash
+sudo apt update
+sudo apt install lynx
 
 # Download and Extract Hadoop
 wget https://archive.apache.org/dist/hadoop/common/hadoop-2.9.0/hadoop-2.9.0.tar.gz
