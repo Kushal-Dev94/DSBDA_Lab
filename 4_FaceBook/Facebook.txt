@@ -1,0 +1,57 @@
+import pandas as pd
+import numpy as np
+
+# Load dataset
+df = pd.read_csv('dataset_Facebook.csv', sep=';')
+
+# ------------------------------
+# a. Create data subsets
+# ------------------------------
+subset_rows = df.iloc[:5]                       # First 5 rows
+subset_cols = df[['Type', 'Category', 'like']]  # Specific columns
+subset_mix = df.loc[0:4, ['Type', 'like']]      # Rows 0–4, selected columns
+
+# ------------------------------
+# b. Merge Data
+# ------------------------------
+# Split into 2 subsets and merge on a common column
+df1 = df[['Post Month', 'Type', 'like']]
+df2 = df[['Type', 'share', 'comment']]
+merged_df = pd.merge(df1, df2, on='Type')  # Merging on common column 'Type'
+
+# ------------------------------
+# c. Sort Data
+# ------------------------------
+sorted_df = df.sort_values(by='like', ascending=False)
+
+# ------------------------------
+# d. Transposing Data
+# ------------------------------
+transposed_df = df.head(3).T  # Transpose first 3 rows only for clarity
+
+# ------------------------------
+# e. Shape and Reshape Data
+# ------------------------------
+shape = df.shape  # Original shape
+
+# Convert to NumPy array and reshape
+likes_array = df['like'].values[:12]  # Use first 12 values for reshaping
+reshaped_array = likes_array.reshape(4, 3)  # Reshape to 4 rows x 3 cols
+
+# Using melt to reshape DataFrame (wide to long)
+melted_df = pd.melt(df[['Post Month', 'like', 'share']], id_vars='Post Month')
+
+# Using pivot to reshape DataFrame (long to wide)
+pivot_df = melted_df.pivot(index='Post Month', columns='variable', values='value')
+
+# ------------------------------
+# Displaying some results
+# ------------------------------
+print("Subset (rows):\n", subset_rows)
+print("\nMerged Data:\n", merged_df.head())
+print("\nSorted by Likes:\n", sorted_df[['Type', 'like']].head())
+print("\nTransposed Data (3 rows):\n", transposed_df)
+print("\nOriginal shape:", shape)
+print("Reshaped likes array (4x3):\n", reshaped_array)
+print("\nMelted DataFrame:\n", melted_df.head())
+print("\nPivoted DataFrame:\n", pivot_df.head())

@@ -1,0 +1,107 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import scipy.integrate as integrate
+import scipy.special as special
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Import dataset
+data = pd.read_csv('AirQuality_visualization.csv', delimiter=';')
+data.head()
+
+# Data cleaning
+# Renaming columns for better clarity
+data = data.rename(columns={'T': 'Temperature'})
+data = data.rename(columns={'RH': 'Relative Humidity'})
+data = data.rename(columns={'AH': 'Absolute Humidity'})
+
+# Drop unnecessary columns
+data = data.drop(['Unnamed: 15', 'Unnamed: 16'], axis=1)
+
+# Convert string to float where applicable
+data['CO(GT)'] = data['CO(GT)'].str.replace(',', '.').astype(float)
+data['C6H6(GT)'] = data['C6H6(GT)'].str.replace(',', '.').astype(float)
+data['Temperature'] = data['Temperature'].str.replace(',', '.').astype(float)
+data['Relative Humidity'] = data['Relative Humidity'].str.replace(',', '.').astype(float)
+data['Absolute Humidity'] = data['Absolute Humidity'].str.replace(',', '.').astype(float)
+
+# Check data info
+data.info()
+
+# Remove duplicates
+data = data.drop_duplicates()
+
+# Check missing values
+data.isna().sum()
+
+# Fill missing values with column means
+data = data.fillna(data.mean())
+
+# Drop rows with missing values
+data = data.dropna()
+
+# Check missing values again
+data.isna().sum()
+
+# Convert 'Absolute Humidity' to percentage
+data['Absolute Humidity'] = data['Absolute Humidity'].multiply(100)
+
+# Remove outliers for selected columns
+def remove_outliers(column):
+    Q1 = column.quantile(0.25)
+    Q3 = column.quantile(0.75)
+    IQR = Q3 - Q1
+    threshold = 1.5 * IQR
+    outlier_mask = (column < Q1 - threshold) | (column > Q3 + threshold)
+    return column[~outlier_mask]
+
+# List of columns to clean for outliers
+columns_to_clean = ['Temperature', 'Relative Humidity', 'Absolute Humidity', 'PT08.S4(NO2)', 'PT08.S5(O3)', 
+                    'C6H6(GT)', 'PT08.S2(NMHC)', 'PT08.S1(CO)']
+
+for col in columns_to_clean:
+    data[col] = remove_outliers(data[col])
+
+# Add Year and Month columns
+data['Year'] = pd.to_datetime(data['Date']).dt.year
+data['Month'] = pd.to_datetime(data['Date']).dt.month
+
+# Check the modified data
+data.head()
+
+# Data integration (example)
+df = pd.read_csv('train.csv')
+df.head()
+df.drop(['PassengerId', 'Ticket', 'Name'], inplace=True, axis=1)
+df.head()
+
+# Data transformation: Example using sqrt transformation
+data12 = np.sqrt(df['Prepaid_New'])
+data13 = np.sqrt(df['Prepaid_New']) ** 2
+
+# Error correcting
+# Find the mean of a column while handling missing values
+mean_prepaid = np.mean(df['Prepaid_New'])
+df['Prepaid_New'] = df['Prepaid_New'].fillna(mean_prepaid)
+
+# Pattern Matching and Replacement
+import re
+aa = pd.read_csv("data_p.csv")
+xyz1 = aa.apply(lambda x: x.str.startswith('%'))
+dat = aa[~xyz1]
+print(dat)
+
+# Example of Data model building
+data_h = pd.read_csv('data_h.csv')
+nomonth = data_h['Month'].str.contains('Feb')
+newdata = data_h['Month'][~nomonth]
+print(newdata)
+
+# Using SciPy for integration as part of data modeling
+result = integrate.quad(lambda x: special.jv(2.5, x), 0, 4.5)
+print(result)
+
+# Additional Data Transformation (example)
+df['Year'] = pd.to_datetime(df['Date']).dt.year
+df['Month'] = pd.to_datetime(df['Date']).dt.month
